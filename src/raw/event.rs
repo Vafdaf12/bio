@@ -1,6 +1,6 @@
-use std::time::Duration;
-use std::io;
 use crossterm::event::{poll, read, Event};
+use std::io;
+use std::time::Duration;
 
 /// Helper struct to provide iterator-based event
 /// handling when working with events in [crossterm]

@@ -1,5 +1,5 @@
-use std::{io, fmt};
 use std::io::{stdout, Stdout, Write};
+use std::{fmt, io};
 
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, ClearType};
 use crossterm::{execute, queue, style, terminal};
