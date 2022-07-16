@@ -1,18 +1,14 @@
-use std::{
-    io::{self, stdout, Stdout},
-    time::Duration,
-};
+use std::io;
 
 use crossterm::{
-    event::{poll, read, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{Event, KeyCode, KeyEvent, KeyModifiers},
     style::Stylize,
 };
 
-use crate::raw_output::{QueueOperation, RawOutput};
+use crate::{raw::output::{QueueOperation, RawOutput}, raw::event::EventIter};
 use super::process::{Process, ProcessEvent};
 
 pub struct BetterCLI<'a> {
-    stdout: Stdout,
     process: &'a mut Process,
     event_format: fn(ProcessEvent) -> String,
 }
@@ -28,7 +24,6 @@ fn passthrough(e: ProcessEvent) -> String {
 impl<'a> BetterCLI<'a> {
     pub fn new(process: &'a mut Process) -> BetterCLI<'a> {
         BetterCLI {
-            stdout: stdout(),
             process,
             event_format: passthrough,
         }
@@ -53,7 +48,7 @@ impl BetterCLI<'_> {
                 }
             }
 
-            for event in InputIter::new(50) {
+            for event in EventIter::default() {
                 match event? {
                     Event::Key(e) => match e {
                         KeyEvent {
@@ -110,31 +105,5 @@ impl BetterCLI<'_> {
         }
 
         Ok(())
-    }
-}
-
-/// The [InputIter] type serves as a helper
-/// type that aids in event-handling when
-/// raw mode is enabled in [crossterm]
-struct InputIter {
-    timeout: Duration,
-}
-
-impl InputIter {
-    fn new(timeout: u64) -> Self {
-        InputIter {
-            timeout: Duration::from_millis(timeout),
-        }
-    }
-}
-
-impl Iterator for InputIter {
-    type Item = io::Result<Event>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match poll(self.timeout) {
-            Err(e) => Some(Err(e)),
-            Ok(m) => m.then(|| read()),
-        }
     }
 }

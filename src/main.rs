@@ -6,9 +6,6 @@ use crossterm::{
     style::Stylize,
 };
 
-mod better_io;
-mod raw_output;
-
 use better_io::{
     cli::BetterCLI,
     process::{Process, ProcessEvent},
