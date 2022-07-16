@@ -1,5 +1,5 @@
 pub mod error;
-pub mod raw;
+pub mod output;
 
 use std::{
     io::{BufRead, BufReader},
