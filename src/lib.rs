@@ -1,14 +1,11 @@
-pub mod error;
 pub mod output;
 
 use std::{
-    io::{BufRead, BufReader},
+    io::{self, BufRead, BufReader},
     process::{Child, ExitStatus},
-    sync::mpsc::{self, Receiver},
+    sync::mpsc::{self, Receiver, TryRecvError},
     thread::{self, JoinHandle},
 };
-
-use crate::error::BioResult;
 
 /// Represents an I/O event that occurs on a child process.
 ///
@@ -51,9 +48,8 @@ impl BetterOutput {
         if let Some(stdout) = child.stdout.take() {
             let sender_stdout = sender.clone();
             bio.stdout_handle = Some(thread::spawn(move || {
-                let x = BufReader::new(stdout);
-
-                x.lines()
+                BufReader::new(stdout)
+                    .lines()
                     .filter_map(|f| f.ok())
                     .map(|line| BioEvent::Output(line))
                     .for_each(|ev| {
@@ -92,10 +88,13 @@ impl BetterOutput {
 
     /// Tries to get the next event and  check to see
     /// if the child process is exited
-    pub fn next_event(&self, child: &mut Child) -> BioResult<BioEvent> {
-        match child.try_wait()? {
-            Some(exit) => Ok(BioEvent::Terminated(exit)),
-            None => Ok(self.event_recv.try_recv()?),
+    pub fn next_event(&self, child: &mut Child) -> Option<io::Result<BioEvent>> {
+        match self.event_recv.try_recv() {
+            Ok(ev) => Some(Ok(ev)),
+            Err(e) => match e {
+                TryRecvError::Empty => None,
+                TryRecvError::Disconnected => Some(child.wait().map(|s| BioEvent::Terminated(s))),
+            },
         }
     }
 }
