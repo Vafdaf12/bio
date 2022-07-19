@@ -1,62 +1,41 @@
-use std::io::{stdout, Stdout, Write};
 use std::{fmt, io};
 
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, ClearType};
-use crossterm::{execute, queue, style, terminal};
-pub struct RawOutput {
-    output: Stdout,
+use crossterm::{
+    cursor::MoveToColumn,
+    queue,
+    style::Print,
+    terminal::{Clear, ClearType},
+    QueueableCommand,
+};
+
+/// Clears the current line and moves the cursor to the start of the line
+pub fn queue_clear_line<W: io::Write>(output: &mut W) -> io::Result<()> {
+    queue!(output, MoveToColumn(0), Clear(ClearType::UntilNewLine))
 }
 
-pub enum QueueOperation<T: fmt::Display> {
-    Print(T),
-    PrintLine(T),
+/// Moves the cursor to the start of the next line
+pub fn queue_newline<W: io::Write>(output: &mut W) -> io::Result<()> {
+    output.queue(Print("\n\r"))?;
+    Ok(())
 }
 
-impl RawOutput {
-    pub fn init() -> io::Result<Self> {
-        enable_raw_mode()?;
-        Ok(RawOutput { output: stdout() })
-    }
-
-    pub fn flush(&mut self) -> io::Result<()> {
-        self.output.flush()
-    }
-
-    pub fn queue<T: fmt::Display>(&mut self, op: QueueOperation<T>) -> io::Result<()> {
-        match op {
-            QueueOperation::Print(line) => queue!(
-                self.output,
-                terminal::Clear(ClearType::CurrentLine),
-                style::Print(&format!("\r{}", line))
-            ),
-            QueueOperation::PrintLine(line) => queue!(
-                self.output,
-                terminal::Clear(ClearType::CurrentLine),
-                style::Print(&format!("\r{}\n\r", line))
-            ),
-        }
-    }
-
-    pub fn println(&mut self, line: &str) -> io::Result<()> {
-        execute!(
-            self.output,
-            terminal::Clear(ClearType::CurrentLine),
-            style::Print(&format!("\r{}\n\r", line))
-        )
-    }
-
-    pub fn print(&mut self, line: &str) -> io::Result<()> {
-        execute!(
-            self.output,
-            terminal::Clear(ClearType::CurrentLine),
-            style::Print(&format!("\r{}", line))
-        )?;
-        Ok(())
-    }
+/// Queues a print operation to the given writer
+pub fn queue_print<D, W>(output: &mut W, line: &D) -> io::Result<()>
+where
+    D: fmt::Display,
+    W: io::Write,
+{
+    output.queue(Print(line))?;
+    Ok(())
 }
 
-impl Drop for RawOutput {
-    fn drop(&mut self) {
-        disable_raw_mode().unwrap();
-    }
+/// Clears the line and draws to it, starting at the beginning of the line
+pub fn queue_line<D, W>(output: &mut W, line: &D) -> io::Result<()>
+where
+    D: fmt::Display,
+    W: io::Write,
+{
+    queue_clear_line(output)?;
+    queue_print(output, line)?;
+    queue_newline(output)
 }
