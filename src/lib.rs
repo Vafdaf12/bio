@@ -1,4 +1,5 @@
 pub mod output;
+pub mod regex_style;
 
 use std::{
     io::{self, BufRead, BufReader},

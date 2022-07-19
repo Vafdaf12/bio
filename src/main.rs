@@ -1,8 +1,10 @@
+use std::fs::File;
 use std::io::{self, stdout, Write};
 use std::process::Stdio;
 use std::{env::args, process::Command};
 
-use better_io::{BetterOutput, BioEvent, output};
+use better_io::regex_style::RegexStyle;
+use better_io::{output, BetterOutput, BioEvent};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use crossterm::style::Stylize;
 
@@ -20,6 +22,9 @@ fn draw_input<W: io::Write>(writer: &mut W, input: &RawInput) -> io::Result<()> 
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = args().skip(1).collect();
+
+    let file = File::open("config.json")?;
+    let rstyle: RegexStyle = serde_json::from_reader(file).expect("invalid JSON");
 
     let mut child = Command::new(&args[0])
         .args(args[1..].iter())
@@ -48,8 +53,8 @@ fn main() -> io::Result<()> {
                     Some(code) => format!("Process exited with code {}", code),
                     None => "Process exited abnormally".to_owned(),
                 },
-                BioEvent::Output(o) => format!("{}: {}", "OUT".bold(), o),
-                BioEvent::Error(e) => format!("{}: {}", "ERR".bold().red(), e),
+                BioEvent::Output(o) => rstyle.style_stdout(&o),
+                BioEvent::Error(e) => rstyle.style_stderr(&e),
             };
             output::queue_line(&mut stdout, &line)?;
 
