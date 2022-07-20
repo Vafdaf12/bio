@@ -8,7 +8,6 @@ use better_io::{output, BetterOutput, BioEvent};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use crossterm::style::Stylize;
 
-use termy::event::EventIter;
 use termy::input::RawInput;
 use termy::raw::RawMode;
 use termy::Widget;
@@ -43,52 +42,54 @@ fn main() -> io::Result<()> {
     let mut stdout = stdout();
     let mut input = RawInput::new();
 
+    draw_input(&mut stdout, &input)?;
+    stdout.flush()?;
+
     'main: loop {
         if let Some(event) = bio.next_event(&mut child) {
             let event = event?;
 
-            // Process output
-            let line = match &event {
-                BioEvent::Terminated(status) => match status.code() {
-                    Some(code) => format!("Process exited with code {}", code),
-                    None => "Process exited abnormally".to_owned(),
-                },
-                BioEvent::Output(o) => rstyle.style_stdout(&o),
-                BioEvent::Error(e) => rstyle.style_stderr(&e),
-            };
-            output::queue_line(&mut stdout, &line)?;
-
-            // Event handling
             match event {
-                BioEvent::Terminated(_) => break 'main,
-                _ => {}
-            }
-            draw_input(&mut stdout, &input)?;
-            stdout.flush()?;
-        }
-
-        for event in EventIter::default() {
-            let event = event?;
-            input.handle_event(&event);
-
-            if let Event::Key(key) = event {
-                match key.code {
-                    KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
-                        output::queue_line(&mut stdout, &"Stopping Process...")?;
-                        child.kill()?;
-                    }
-                    KeyCode::Enter if !input.value().is_empty() => {
-                        let value = input.value().to_owned();
-                        child_stdin.write(format!("{}\n", value).as_bytes())?;
-                        child_stdin.flush()?;
-
-                        input.set_value("");
-                    }
-                    _ => {}
+                BioEvent::Output(o) => {
+                    output::queue_line(&mut stdout, &rstyle.style_stdout(&o))?;
+                    draw_input(&mut stdout, &input)?;
                 }
-            }
+                BioEvent::Error(e) => {
+                    output::queue_line(&mut stdout, &rstyle.style_stderr(&e))?;
+                    draw_input(&mut stdout, &input)?;
+                }
 
-            draw_input(&mut stdout, &input)?;
+                BioEvent::Terminated(status) => {
+                    let text = match status.code() {
+                        Some(code) => format!("Process exited with code {}", code),
+                        None => "Process exited abnormally".to_owned(),
+                    };
+                    output::queue_line(&mut stdout, &text)?;
+                    break 'main;
+                }
+
+                BioEvent::Terminal(event) => {
+                    input.handle_event(&event);
+                    if let Event::Key(key) = event {
+                        match key.code {
+                            KeyCode::Char('c') if key.modifiers == KeyModifiers::CONTROL => {
+                                output::queue_line(&mut stdout, &"Stopping Process...")?;
+                                child.kill()?;
+                            }
+                            KeyCode::Enter if !input.value().is_empty() => {
+                                let value = input.value().to_owned();
+                                child_stdin.write(format!("{}\n", value).as_bytes())?;
+                                child_stdin.flush()?;
+
+                                input.set_value("");
+                            }
+                            _ => {}
+                        }
+                    }
+                    draw_input(&mut stdout, &input)?;
+                }
+            };
+
             stdout.flush()?;
         }
     }

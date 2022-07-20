@@ -4,9 +4,12 @@ pub mod regex_style;
 use std::{
     io::{self, BufRead, BufReader},
     process::{Child, ExitStatus},
-    sync::mpsc::{self, Receiver, TryRecvError},
+    sync::mpsc::{self, Receiver},
     thread::{self, JoinHandle},
+    time::Duration,
 };
+
+use crossterm::event::{read, Event};
 
 /// Represents an I/O event that occurs on a child process.
 ///
@@ -14,6 +17,9 @@ use std::{
 /// event only occurs if a complete line of of input is written
 /// to the `stdin` of the child process
 pub enum BioEvent {
+    // A terminal event has occured
+    Terminal(Event),
+
     /// The process has stopped
     Terminated(ExitStatus),
 
@@ -40,6 +46,14 @@ pub struct BetterOutput {
 impl BetterOutput {
     pub fn new(child: &mut Child) -> Self {
         let (sender, event_recv) = mpsc::channel::<BioEvent>();
+        let sender_term = sender.clone();
+
+        thread::spawn(move || loop {
+            sender_term
+                .send(BioEvent::Terminal(read().unwrap()))
+                .unwrap();
+        });
+
         let mut bio = BetterOutput {
             event_recv,
             stdout_handle: None,
@@ -90,11 +104,13 @@ impl BetterOutput {
     /// Tries to get the next event and  check to see
     /// if the child process is exited
     pub fn next_event(&self, child: &mut Child) -> Option<io::Result<BioEvent>> {
-        match self.event_recv.try_recv() {
-            Ok(ev) => Some(Ok(ev)),
-            Err(e) => match e {
-                TryRecvError::Empty => None,
-                TryRecvError::Disconnected => Some(child.wait().map(|s| BioEvent::Terminated(s))),
+        const TIMEOUT: Duration = Duration::from_secs(1);
+
+        match self.event_recv.recv_timeout(TIMEOUT) {
+            Ok(event) => Some(Ok(event)),
+            Err(_) => match child.try_wait() {
+                Ok(status) => status.map(|x| BioEvent::Terminated(x)).map(|x| Ok(x)),
+                Err(e) => Some(Err(e)),
             },
         }
     }

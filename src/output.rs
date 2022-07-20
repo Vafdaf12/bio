@@ -32,7 +32,7 @@ where
 /// Clears the line and draws to it, starting at the beginning of the line
 pub fn queue_line<D, W>(output: &mut W, line: &D) -> io::Result<()>
 where
-    D: fmt::Display,
+    D: fmt::Display + Sized,
     W: io::Write,
 {
     queue_clear_line(output)?;
