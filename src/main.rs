@@ -3,8 +3,8 @@ use std::io::{self, stdout, Write};
 use std::process::Stdio;
 use std::{env::args, process::Command};
 
-use better_io::regex_style::RegexStyle;
-use better_io::{output, BetterOutput, BioEvent};
+use bio::regex_style::RegexStyle;
+use bio::{output, BetterOutput, BioEvent};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use crossterm::style::Stylize;
 
